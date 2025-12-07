@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 
 // ============================================
 // 타입 정의
@@ -57,10 +58,10 @@ const UNIT_SPEED = FIELD_WIDTH / 8; // 8초에 끝에서 끝 도달 (느리게)
 const UNIT_SIZE = 60;  // 거리 단위 늘림
 const ATTACK_INTERVAL = 1000; // 1초마다 공격 (느리게)
 const MAX_ELECTRICITY = 500;
-const ELECTRICITY_REGEN = 50;
+const ELECTRICITY_REGEN = 10;
 const BASE_HP = 50;
 const BOSS_UNLOCK_DEATHS = 20;
-const SUMMON_COOLDOWN = 500; // 소환 쿨타임 0.8초
+const SUMMON_COOLDOWN = 800; // 소환 쿨타임 0.8초
 
 // 스프라이트 설정 (piskel 에셋)
 const SPRITE_CONFIG = {
@@ -311,6 +312,12 @@ const createSkills = (): Skill[] => [
 export default function GamePage() {
   const gameRef = useRef<HTMLDivElement>(null);
   const gameInstanceRef = useRef<Phaser.Game | null>(null);
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  
+  // URL에서 진영 가져오기 (기본값: legacy)
+  const playerFaction = (searchParams.get("faction") as "legacy" | "modern") || "legacy";
+  const aiFaction = playerFaction === "legacy" ? "modern" : "legacy";
 
   useEffect(() => {
     if (!gameRef.current || gameInstanceRef.current) return;
@@ -327,6 +334,10 @@ export default function GamePage() {
       // 게임 씬 구현
       // ============================================
       class GameSceneImpl extends Phaser.Scene {
+        // 진영 설정
+        playerFaction: "legacy" | "modern" = "legacy";
+        aiFaction: "legacy" | "modern" = "modern";
+        
         playerElectricity = MAX_ELECTRICITY;
         aiElectricity = MAX_ELECTRICITY;
         playerMaxElectricity = MAX_ELECTRICITY;
@@ -367,6 +378,11 @@ export default function GamePage() {
 
         constructor() {
           super("GameScene");
+        }
+
+        init(data: { playerFaction: "legacy" | "modern"; aiFaction: "legacy" | "modern" }) {
+          this.playerFaction = data.playerFaction || "legacy";
+          this.aiFaction = data.aiFaction || "modern";
         }
 
         preload() {
@@ -460,6 +476,8 @@ export default function GamePage() {
         }
 
         createUI() {
+          const isPlayerLegacy = this.playerFaction === "legacy";
+          
           // 제목
           this.add.text(GAME_WIDTH / 2, 30, "⚡ TRANSISTOR WAR ⚡", {
             fontSize: "36px",
@@ -468,43 +486,70 @@ export default function GamePage() {
             stroke: "#000",
             strokeThickness: 4,
           }).setOrigin(0.5);
+          
+          // 진영 표시
+          this.add.text(GAME_WIDTH / 2, 65, `[ LEGACY vs MODERN ]`, {
+            fontSize: "16px",
+            color: "#888",
+          }).setOrigin(0.5);
 
-          // 기지
+          // 기지 - Legacy=왼쪽, Modern=오른쪽 (항상 고정)
           this.createBase(80, 350, "legacy");
           this.createBase(GAME_WIDTH - 80, 350, "modern");
 
-          // HP 바 - 기지 위쪽에 배치
+          // Legacy HP 바 (왼쪽) - 항상 고정
           this.add.rectangle(80, 190, 100, 16, 0x333333);
           this.legacyHPBar = this.add.rectangle(80, 190, 100, 16, 0xff4500);
           this.legacyHPText = this.add.text(80, 168, `HP: ${this.legacyBaseHP}`, {
             fontSize: "16px",
             color: "#ff4500",
           }).setOrigin(0.5);
+          
+          // Legacy 라벨
+          this.add.text(80, 145, isPlayerLegacy ? "👤 YOU" : "🤖 AI", {
+            fontSize: "12px",
+            color: "#ff4500",
+          }).setOrigin(0.5);
 
+          // Modern HP 바 (오른쪽) - 항상 고정
           this.add.rectangle(GAME_WIDTH - 80, 190, 100, 16, 0x333333);
           this.modernHPBar = this.add.rectangle(GAME_WIDTH - 80, 190, 100, 16, 0x00bfff);
           this.modernHPText = this.add.text(GAME_WIDTH - 80, 168, `HP: ${this.modernBaseHP}`, {
             fontSize: "16px",
             color: "#00bfff",
           }).setOrigin(0.5);
+          
+          // Modern 라벨
+          this.add.text(GAME_WIDTH - 80, 145, isPlayerLegacy ? "🤖 AI" : "👤 YOU", {
+            fontSize: "12px",
+            color: "#00bfff",
+          }).setOrigin(0.5);
 
-          // 전기 표시
-          this.add.rectangle(120, 70, 180, 45, 0x222222, 0.8);
-          this.playerElectricityText = this.add.text(40, 70, `⚡ ${this.playerElectricity}W`, {
+          // 플레이어 전기 표시 (플레이어 진영 쪽)
+          const playerElecX = isPlayerLegacy ? 120 : GAME_WIDTH - 120;
+          const playerTextX = isPlayerLegacy ? 40 : GAME_WIDTH - 40;
+          const playerAlign = isPlayerLegacy ? 0 : 1;
+          this.add.rectangle(playerElecX, 70, 180, 45, 0x222222, 0.8);
+          this.playerElectricityText = this.add.text(playerTextX, 70, `⚡ ${this.playerElectricity}W`, {
             fontSize: "26px",
             color: "#ffd700",
             fontFamily: "Courier New",
-          }).setOrigin(0, 0.5);
+          }).setOrigin(playerAlign, 0.5);
 
-          this.add.rectangle(GAME_WIDTH - 120, 70, 180, 45, 0x222222, 0.8);
-          this.aiElectricityText = this.add.text(GAME_WIDTH - 40, 70, `⚡ ${this.aiElectricity}W`, {
+          // AI 전기 표시 (AI 진영 쪽)
+          const aiElecX = isPlayerLegacy ? GAME_WIDTH - 120 : 120;
+          const aiTextX = isPlayerLegacy ? GAME_WIDTH - 40 : 40;
+          const aiAlign = isPlayerLegacy ? 1 : 0;
+          this.add.rectangle(aiElecX, 70, 180, 45, 0x222222, 0.8);
+          this.aiElectricityText = this.add.text(aiTextX, 70, `⚡ ${this.aiElectricity}W`, {
             fontSize: "26px",
-            color: "#ffd700",
+            color: "#aaa",
             fontFamily: "Courier New",
-          }).setOrigin(1, 0.5);
+          }).setOrigin(aiAlign, 0.5);
 
-          // 사망 카운트 - 전기 아래에
-          this.playerDeathText = this.add.text(40, 105, `💀 ${this.playerDeaths}/${BOSS_UNLOCK_DEATHS}`, {
+          // 사망 카운트 (플레이어 진영 쪽)
+          const deathX = isPlayerLegacy ? 40 : GAME_WIDTH - 200;
+          this.playerDeathText = this.add.text(deathX, 105, `💀 ${this.playerDeaths}/${BOSS_UNLOCK_DEATHS}`, {
             fontSize: "18px",
             color: "#ff6666",
           });
@@ -546,17 +591,22 @@ export default function GamePage() {
         }
 
         createSummonButtons() {
-          const stats = UNIT_STATS.legacy;
-          const startX = 120;
+          const stats = UNIT_STATS[this.playerFaction];
+          const isPlayerLegacy = this.playerFaction === "legacy";
+          const panelColor = isPlayerLegacy ? 0xff4500 : 0x00bfff;
+          const textColor = isPlayerLegacy ? "#ff4500" : "#00bfff";
+          
+          // 소환 버튼은 플레이어 진영 쪽에 위치
+          const startX = isPlayerLegacy ? 120 : GAME_WIDTH - 120;
           const startY = 510;
 
-          // 패널 배경 - 필드 아래에 배치
+          // 패널 배경
           this.add.rectangle(startX, startY + 60, 200, 200, 0x111111, 0.95)
-            .setStrokeStyle(2, 0xff4500, 0.8);
+            .setStrokeStyle(2, panelColor, 0.8);
 
-          this.add.text(startX, startY - 10, "[ 유닛 소환 ]", {
+          this.add.text(startX, startY - 10, `[ ${this.playerFaction.toUpperCase()} 유닛 ]`, {
             fontSize: "16px",
-            color: "#ff4500",
+            color: textColor,
           }).setOrigin(0.5);
           
           // 쿨타임 안내
@@ -569,7 +619,7 @@ export default function GamePage() {
           this.createUnitButton(startX, startY + 55, "🏹 원거리", stats.ranger.cost, "ranger");
           this.createUnitButton(startX, startY + 90, "💚 힐러", stats.healer.cost, "healer");
           
-          // 보스 버튼 - 별도 참조 저장
+          // 보스 버튼
           this.bossButton = this.createUnitButton(startX, startY + 125, "👑 보스", stats.boss.cost, "boss");
           this.bossButton.setAlpha(0.3);
 
@@ -622,8 +672,8 @@ export default function GamePage() {
               return;
             }
             
-            // 소환 시도
-            const success = this.spawnUnit("legacy", unitType as "warrior" | "ranger" | "healer" | "boss");
+            // 플레이어 진영으로 소환
+            const success = this.spawnUnit(this.playerFaction, unitType as "warrior" | "ranger" | "healer" | "boss");
             if (success) {
               this.lastSummonTime = now;
               this.tweens.add({
@@ -747,25 +797,28 @@ export default function GamePage() {
         spawnUnit(faction: "legacy" | "modern", unitType: "warrior" | "ranger" | "healer" | "boss"): boolean {
           if (this.gameOver || this.globalFreeze) return false;
 
+          const isPlayer = faction === this.playerFaction;
           const stats = UNIT_STATS[faction][unitType];
-          const costMultiplier = faction === "legacy" ? this.playerCostMultiplier : this.aiCostMultiplier;
+          const costMultiplier = isPlayer ? this.playerCostMultiplier : this.aiCostMultiplier;
           const actualCost = Math.floor(stats.cost * costMultiplier);
 
-          const electricity = faction === "legacy" ? this.playerElectricity : this.aiElectricity;
+          const electricity = isPlayer ? this.playerElectricity : this.aiElectricity;
           if (electricity < actualCost) return false;
 
           if (unitType === "boss") {
-            const deaths = faction === "legacy" ? this.playerDeaths : this.aiDeaths;
+            const deaths = isPlayer ? this.playerDeaths : this.aiDeaths;
             if (deaths < BOSS_UNLOCK_DEATHS) return false;
           }
 
-          if (faction === "legacy") {
+          if (isPlayer) {
             this.playerElectricity -= actualCost;
           } else {
             this.aiElectricity -= actualCost;
           }
 
-          const x = faction === "legacy" ? FIELD_START_X + 50 : FIELD_END_X - 50;
+          // Legacy=왼쪽에서 스폰, Modern=오른쪽에서 스폰 (항상 고정)
+          const isLegacy = faction === "legacy";
+          const x = isLegacy ? FIELD_START_X + 50 : FIELD_END_X - 50;
           const y = 280 + Math.random() * 140;
 
           const unit = this.add.container(x, y) as Unit;
@@ -776,7 +829,8 @@ export default function GamePage() {
             if (this.anims.exists(`${spriteKey}-walk`)) {
               sprite.play(`${spriteKey}-walk`);
             }
-            if (faction === "modern") sprite.setFlipX(true);
+            // Modern 유닛은 왼쪽으로 이동하므로 flip
+            if (!isLegacy) sprite.setFlipX(true);
             // 스케일 적용
             const scale = unitType === "boss" ? SPRITE_CONFIG.bossScale : SPRITE_CONFIG.unitScale;
             sprite.setScale(scale);
@@ -795,7 +849,8 @@ export default function GamePage() {
               graphics.strokeCircle(0, 0, size);
             } else if (unitType === "ranger") {
               graphics.fillStyle(color);
-              const dir = faction === "legacy" ? 1 : -1;
+              // Legacy=오른쪽 향함, Modern=왼쪽 향함
+              const dir = isLegacy ? 1 : -1;
               graphics.fillTriangle(-size * dir, size, size * dir, size, 0, -size);
             } else if (unitType === "healer") {
               graphics.fillStyle(0x32cd32);
@@ -836,7 +891,8 @@ export default function GamePage() {
           unit.lastAttackTime = 0;
           if (unitType === "healer") unit.healCooldown = 0;
 
-          const velocity = faction === "legacy" ? UNIT_SPEED : -UNIT_SPEED;
+          // Legacy=오른쪽으로 이동, Modern=왼쪽으로 이동
+          const velocity = isLegacy ? UNIT_SPEED : -UNIT_SPEED;
           (unit.body as Phaser.Physics.Arcade.Body).setVelocityX(velocity);
 
           this.createSpawnEffect(x, y, faction);
@@ -864,19 +920,19 @@ export default function GamePage() {
           const canSummonBoss = this.aiDeaths >= BOSS_UNLOCK_DEATHS;
           const types: Array<"warrior" | "ranger" | "healer"> = ["warrior", "ranger", "healer"];
 
-          if (canSummonBoss && this.aiElectricity >= 250 && Math.random() < 0.15) {
-            this.spawnUnit("modern", "boss");
+          if (canSummonBoss && this.aiElectricity >= UNIT_STATS[this.aiFaction].boss.cost && Math.random() < 0.15) {
+            this.spawnUnit(this.aiFaction, "boss");
             return;
           }
 
           const affordable = types.filter((type) => {
-            const cost = Math.floor(UNIT_STATS.modern[type].cost * this.aiCostMultiplier);
+            const cost = Math.floor(UNIT_STATS[this.aiFaction][type].cost * this.aiCostMultiplier);
             return this.aiElectricity >= cost;
           });
 
           if (affordable.length > 0) {
             const type = affordable[Math.floor(Math.random() * affordable.length)];
-            this.spawnUnit("modern", type);
+            this.spawnUnit(this.aiFaction, type);
           }
         }
 
@@ -953,7 +1009,7 @@ export default function GamePage() {
           }
 
           toDestroy.forEach((unit) => {
-            if (unit.faction === "legacy") this.playerDeaths++;
+            if (unit.faction === this.playerFaction) this.playerDeaths++;
             else this.aiDeaths++;
             this.createDeathEffect(unit.x, unit.y, unit.faction);
             unit.destroy();
@@ -1051,19 +1107,28 @@ export default function GamePage() {
           const units = this.getUnits();
 
           for (const unit of units) {
+            // Legacy 유닛이 오른쪽 끝 도달 = Modern 기지 공격
             if (unit.faction === "legacy" && unit.x >= FIELD_END_X) {
               this.modernBaseHP--;
               this.createBaseHitEffect(GAME_WIDTH - 80, 350, "modern");
               unit.destroy();
-            } else if (unit.faction === "modern" && unit.x <= FIELD_START_X) {
+            } 
+            // Modern 유닛이 왼쪽 끝 도달 = Legacy 기지 공격
+            else if (unit.faction === "modern" && unit.x <= FIELD_START_X) {
               this.legacyBaseHP--;
               this.createBaseHitEffect(80, 350, "legacy");
               unit.destroy();
             }
           }
 
-          if (this.legacyBaseHP <= 0) this.endGame("Modern 승리");
-          else if (this.modernBaseHP <= 0) this.endGame("Legacy 승리");
+          // 승패 판정
+          if (this.modernBaseHP <= 0) {
+            const isWin = this.playerFaction === "legacy";
+            this.endGame(isWin ? "🎉 승리! 🎉" : "💀 패배 💀", isWin);
+          } else if (this.legacyBaseHP <= 0) {
+            const isWin = this.playerFaction === "modern";
+            this.endGame(isWin ? "🎉 승리! 🎉" : "💀 패배 💀", isWin);
+          }
         }
 
         createBaseHitEffect(x: number, y: number, faction: "legacy" | "modern") {
@@ -1086,13 +1151,16 @@ export default function GamePage() {
           
           this.playerElectricityText.setColor(this.playerElectricityPaused ? "#ff0000" : "#ffd700");
 
+          // Legacy HP 바 (왼쪽)
           const legacyRatio = Math.max(0, this.legacyBaseHP / BASE_HP);
-          const modernRatio = Math.max(0, this.modernBaseHP / BASE_HP);
           this.legacyHPBar.setScale(legacyRatio, 1);
-          this.legacyHPBar.x = 80 - (100 * (1 - legacyRatio) / 2); // 왼쪽 정렬
-          this.modernHPBar.setScale(modernRatio, 1);
-          this.modernHPBar.x = (GAME_WIDTH - 80) + (100 * (1 - modernRatio) / 2); // 오른쪽 정렬
+          this.legacyHPBar.x = 80 - (100 * (1 - legacyRatio) / 2);
           this.legacyHPText.setText(`HP: ${Math.max(0, this.legacyBaseHP)}`);
+          
+          // Modern HP 바 (오른쪽)
+          const modernRatio = Math.max(0, this.modernBaseHP / BASE_HP);
+          this.modernHPBar.setScale(modernRatio, 1);
+          this.modernHPBar.x = (GAME_WIDTH - 80) + (100 * (1 - modernRatio) / 2);
           this.modernHPText.setText(`HP: ${Math.max(0, this.modernBaseHP)}`);
 
           this.playerDeathText.setText(`💀 ${this.playerDeaths}/${BOSS_UNLOCK_DEATHS}`);
@@ -1119,7 +1187,7 @@ export default function GamePage() {
 
         usePlayerSkill() {
           if (this.playerSkillUsed || !this.playerSkill) return;
-          this.playerSkill.effect(this, "legacy");
+          this.playerSkill.effect(this, this.playerFaction);
           this.playerSkillUsed = true;
         }
 
@@ -1198,7 +1266,7 @@ export default function GamePage() {
           }
         }
 
-        endGame(message: string) {
+        endGame(message: string, isPlayerWin: boolean) {
           this.gameOver = true;
 
           this.getUnits().forEach((unit) => {
@@ -1212,13 +1280,20 @@ export default function GamePage() {
           );
           overlay.setDepth(200);
 
-          const color = message.includes("Legacy") ? "#ff4500" : "#00bfff";
+          const color = isPlayerWin ? "#00ff00" : "#ff4444";
           
-          const resultText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 50, message, {
-            fontSize: "48px",
+          const resultText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 80, message, {
+            fontSize: "56px",
             color: color,
             stroke: "#000",
             strokeThickness: 6,
+            fontFamily: "Courier New",
+          }).setOrigin(0.5).setDepth(201);
+
+          const detailText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 20, 
+            `${this.playerFaction.toUpperCase()} vs ${this.aiFaction.toUpperCase()}`, {
+            fontSize: "24px",
+            color: "#aaa",
             fontFamily: "Courier New",
           }).setOrigin(0.5).setDepth(201);
 
@@ -1231,23 +1306,48 @@ export default function GamePage() {
             ease: "Back.easeOut",
           });
 
-          const restartBtn = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 50);
+          // 다시 시작 버튼
+          const restartBtn = this.add.container(GAME_WIDTH / 2 - 110, GAME_HEIGHT / 2 + 60);
           restartBtn.setDepth(201);
 
-          const btnBg = this.add.rectangle(0, 0, 200, 50, 0x333333);
-          btnBg.setStrokeStyle(2, 0x666666);
-          restartBtn.add(btnBg);
+          const restartBg = this.add.rectangle(0, 0, 200, 50, 0x333333);
+          restartBg.setStrokeStyle(2, 0x666666);
+          restartBtn.add(restartBg);
 
-          const btnText = this.add.text(0, 0, "🔄 다시 시작", {
-            fontSize: "20px",
+          const restartText = this.add.text(0, 0, "🔄 다시 시작", {
+            fontSize: "18px",
             color: "#fff",
           }).setOrigin(0.5);
-          restartBtn.add(btnText);
+          restartBtn.add(restartText);
 
-          btnBg.setInteractive({ useHandCursor: true });
-          btnBg.on("pointerover", () => btnBg.setStrokeStyle(3, 0xffffff));
-          btnBg.on("pointerout", () => btnBg.setStrokeStyle(2, 0x666666));
-          btnBg.on("pointerdown", () => this.scene.restart());
+          restartBg.setInteractive({ useHandCursor: true });
+          restartBg.on("pointerover", () => restartBg.setStrokeStyle(3, 0xffffff));
+          restartBg.on("pointerout", () => restartBg.setStrokeStyle(2, 0x666666));
+          restartBg.on("pointerdown", () => this.scene.restart({ 
+            playerFaction: this.playerFaction, 
+            aiFaction: this.aiFaction 
+          }));
+
+          // 메인으로 버튼
+          const mainBtn = this.add.container(GAME_WIDTH / 2 + 110, GAME_HEIGHT / 2 + 60);
+          mainBtn.setDepth(201);
+
+          const mainBg = this.add.rectangle(0, 0, 200, 50, 0x224466);
+          mainBg.setStrokeStyle(2, 0x4488aa);
+          mainBtn.add(mainBg);
+
+          const mainText = this.add.text(0, 0, "🏠 메인으로", {
+            fontSize: "18px",
+            color: "#fff",
+          }).setOrigin(0.5);
+          mainBtn.add(mainText);
+
+          mainBg.setInteractive({ useHandCursor: true });
+          mainBg.on("pointerover", () => mainBg.setStrokeStyle(3, 0x66aacc));
+          mainBg.on("pointerout", () => mainBg.setStrokeStyle(2, 0x4488aa));
+          mainBg.on("pointerdown", () => {
+            window.location.href = "/";
+          });
         }
       }
 
@@ -1262,9 +1362,22 @@ export default function GamePage() {
         },
         scene: GameSceneImpl,
         backgroundColor: "#1a2030",
+        callbacks: {
+          preBoot: (game) => {
+            // 진영 정보를 registry에 저장
+            game.registry.set('playerFaction', playerFaction);
+            game.registry.set('aiFaction', aiFaction);
+          }
+        }
       };
 
       gameInstanceRef.current = new Phaser.Game(config);
+      
+      // scene에 데이터 전달
+      gameInstanceRef.current.scene.start('GameScene', { 
+        playerFaction, 
+        aiFaction 
+      });
     });
 
     return () => {
