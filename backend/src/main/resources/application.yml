@@ -1,0 +1,74 @@
+spring:
+  application:
+    name: transistor-war
+
+  # 프로필 설정 (dev: H2, prod: MySQL)
+  profiles:
+    active: dev
+
+  # JPA 공통 설정
+  jpa:
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+    hibernate:
+      ddl-auto: update
+
+  # Jackson 설정
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+    serialization:
+      write-dates-as-timestamps: false
+
+# JWT 설정
+jwt:
+  secret: transistor-war-secret-key-must-be-at-least-256-bits-long-for-hs256
+  expiration: 86400000  # 24시간 (밀리초)
+
+# 서버 설정
+server:
+  port: 8080
+
+# 로깅
+logging:
+  level:
+    com.transistorwar: DEBUG
+    org.hibernate.SQL: DEBUG
+
+---
+# 개발 환경 (H2)
+spring:
+  config:
+    activate:
+      on-profile: dev
+  
+  datasource:
+    url: jdbc:h2:mem:transistorwar;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+
+---
+# 프로덕션 환경 (MySQL)
+spring:
+  config:
+    activate:
+      on-profile: prod
+  
+  datasource:
+    url: jdbc:mysql://localhost:3306/transistorwar?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:password}
+  
+  jpa:
+    database-platform: org.hibernate.dialect.MySQLDialect

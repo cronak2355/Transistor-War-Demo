@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { GameApi, TokenManager } from "@/lib/api";
 
 // ============================================
 // 타입 정의
@@ -33,16 +34,16 @@ interface Skill {
 // ============================================
 const UNIT_STATS = {
   legacy: {
-    warrior: { cost: 25, hp: 25, damage: 20, range: 1 },
-    ranger: { cost: 45, hp: 15, damage: 30, range: 3 },
-    healer: { cost: 40, hp: 20, damage: 0, range: 2 },
-    boss: { cost: 300, hp: 250, damage: 60, range: 1 },
+    warrior: { cost: 30, hp: 250, damage: 20, range: 1 },
+    ranger: { cost: 50, hp: 150, damage: 30, range: 3 },
+    healer: { cost: 40, hp: 200, damage: 0, range: 2 },
+    boss: { cost: 300, hp: 2500, damage: 60, range: 1 },
   },
   modern: {
-    warrior: { cost: 20, hp: 20, damage: 15, range: 1 },
-    ranger: { cost: 40, hp: 10, damage: 25, range: 3 },
-    healer: { cost: 35, hp: 15, damage: 0, range: 2 },
-    boss: { cost: 250, hp: 200, damage: 50, range: 1 },
+    warrior: { cost: 20, hp: 200, damage: 15, range: 1 },
+    ranger: { cost: 40, hp: 100, damage: 25, range: 3 },
+    healer: { cost: 30, hp: 150, damage: 0, range: 2 },
+    boss: { cost: 250, hp: 2000, damage: 50, range: 1 },
   },
 };
 
@@ -54,14 +55,14 @@ const GAME_HEIGHT = 700;  // 화면 높힘
 const FIELD_WIDTH = 1100; // 필드 넓힘
 const FIELD_START_X = 150;
 const FIELD_END_X = 1250;
-const UNIT_SPEED = FIELD_WIDTH / 8; // 8초에 끝에서 끝 도달 (느리게)
+const UNIT_SPEED = FIELD_WIDTH / 15; // 8초에 끝에서 끝 도달 (느리게)
 const UNIT_SIZE = 60;  // 거리 단위 늘림
 const ATTACK_INTERVAL = 1000; // 1초마다 공격 (느리게)
 const MAX_ELECTRICITY = 500;
 const ELECTRICITY_REGEN = 10;
-const BASE_HP = 50;
+const BASE_HP = 30;
 const BOSS_UNLOCK_DEATHS = 20;
-const SUMMON_COOLDOWN = 800; // 소환 쿨타임 0.8초
+const SUMMON_COOLDOWN = 500; // 소환 쿨타임 0.5초
 
 // 스프라이트 설정 (piskel 에셋)
 const SPRITE_CONFIG = {
@@ -363,6 +364,9 @@ export default function GamePage() {
         
         // 소환 쿨타임
         lastSummonTime = 0;
+        
+        // 게임 시작 시간 (결과 저장용)
+        gameStartTime = Date.now();
 
         private playerElectricityText!: Phaser.GameObjects.Text;
         private aiElectricityText!: Phaser.GameObjects.Text;
@@ -383,6 +387,7 @@ export default function GamePage() {
         init(data: { playerFaction: "legacy" | "modern"; aiFaction: "legacy" | "modern" }) {
           this.playerFaction = data.playerFaction || "legacy";
           this.aiFaction = data.aiFaction || "modern";
+          this.gameStartTime = Date.now();  // 게임 시작 시간 기록
         }
 
         preload() {
@@ -610,7 +615,7 @@ export default function GamePage() {
           }).setOrigin(0.5);
           
           // 쿨타임 안내
-          this.add.text(startX, startY + 145, "쿨타임: 0.8초", {
+          this.add.text(startX, startY + 145, "쿨타임: 0.5초", {
             fontSize: "11px",
             color: "#666",
           }).setOrigin(0.5);
@@ -1081,10 +1086,10 @@ export default function GamePage() {
 
             if (allies.length > 0) {
               const target = allies.reduce((lowest, u) => u.hp < lowest.hp ? u : lowest);
-              target.hp = Math.min(target.hp + 1, target.maxHp);
+              target.hp = Math.min(target.hp + 10, target.maxHp);
               
               // 힐 이펙트
-              const heal = this.add.text(target.x, target.y - 20, "+1", {
+              const heal = this.add.text(target.x, target.y - 20, "+10", {
                 fontSize: "12px",
                 color: "#00ff00",
                 fontFamily: "Courier New",
@@ -1268,6 +1273,29 @@ export default function GamePage() {
 
         endGame(message: string, isPlayerWin: boolean) {
           this.gameOver = true;
+
+          // 게임 결과를 백엔드에 저장
+          const gameDuration = Math.floor((Date.now() - this.gameStartTime) / 1000);
+          GameApi.saveResult(this.playerFaction, isPlayerWin, true, gameDuration)
+            .then(response => {
+              if (response.success) {
+                console.log("게임 결과 저장 완료");
+                // 로컬 유저 정보 업데이트
+                const user = TokenManager.getUser();
+                if (user) {
+                  user.total_games++;
+                  if (isPlayerWin) {
+                    if (this.playerFaction === "legacy") user.legacy_wins++;
+                    else user.modern_wins++;
+                  } else {
+                    if (this.playerFaction === "legacy") user.legacy_losses++;
+                    else user.modern_losses++;
+                  }
+                  TokenManager.setUser(user);
+                }
+              }
+            })
+            .catch(err => console.error("게임 결과 저장 실패:", err));
 
           this.getUnits().forEach((unit) => {
             if (unit.body) (unit.body as Phaser.Physics.Arcade.Body).setVelocity(0);
