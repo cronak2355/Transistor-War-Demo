@@ -1,11 +1,12 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    id("org.springframework.boot") version "3.2.0"
-    id("io.spring.dependency-management") version "1.1.4"
-    kotlin("jvm") version "1.9.21"
-    kotlin("plugin.spring") version "1.9.21"
-    kotlin("plugin.jpa") version "1.9.21"
+    id("org.springframework.boot") version "3.2.0"  // Spring Boot 버전 (필요 시 확인)
+    id("io.spring.dependency-management") version "1.1.5"  // 최신 버전으로 변경
+    kotlin("jvm") version "1.9.20"
+    kotlin("plugin.spring") version "1.9.20"
+    kotlin("plugin.jpa") version "1.9.21"  // ← 이거 추가!
+    // 기타 플러그인...
 }
 
 group = "com.transistorwar"

@@ -1,5 +1,6 @@
 package com.transistorwar.dto
 
+import com.fasterxml.jackson.annotation.JsonProperty
 import com.transistorwar.entity.GameRecord
 import com.transistorwar.entity.GameRoom
 import com.transistorwar.entity.RoomStatus
@@ -74,6 +75,7 @@ data class CreateRoomRequest(
 
 data class JoinRoomRequest(
     @field:NotBlank(message = "방 코드를 입력하세요")
+    @JsonProperty("roomCode")
     val roomCode: String
 )
 

@@ -26,23 +26,21 @@ class SecurityConfig(
     @Bean
     fun filterChain(http: HttpSecurity): SecurityFilterChain {
         http
-            .cors { it.configurationSource(corsConfigurationSource()) }
             .csrf { it.disable() }
+            .cors { it.configurationSource(corsConfigurationSource()) }
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
             .authorizeHttpRequests { auth ->
                 auth
-                    // 공개 API
                     .requestMatchers("/api/auth/**").permitAll()
-                    .requestMatchers("/api/rooms/list").permitAll()
+                    .requestMatchers("/api/rooms/**").permitAll()
                     .requestMatchers("/api/ranking/**").permitAll()
-                    // H2 콘솔 (개발용)
+                    .requestMatchers("/api/game/**").permitAll()
+                    .requestMatchers("/api/games/**").permitAll()  // ← 추가!
                     .requestMatchers("/h2-console/**").permitAll()
-                    // WebSocket
                     .requestMatchers("/ws/**").permitAll()
-                    // 나머지는 인증 필요
                     .anyRequest().authenticated()
             }
-            .headers { it.frameOptions { frame -> frame.disable() } } // H2 콘솔용
+            .headers { it.frameOptions { frame -> frame.disable() } }
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter::class.java)
 
         return http.build()
@@ -51,8 +49,8 @@ class SecurityConfig(
     @Bean
     fun corsConfigurationSource(): CorsConfigurationSource {
         val configuration = CorsConfiguration()
-        configuration.allowedOrigins = listOf("http://localhost:3000", "http://localhost:3001")
-        configuration.allowedMethods = listOf("GET", "POST", "PUT", "DELETE", "OPTIONS")
+        configuration.allowedOriginPatterns = listOf("*")
+        configuration.allowedMethods = listOf("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD")
         configuration.allowedHeaders = listOf("*")
         configuration.allowCredentials = true
         configuration.maxAge = 3600

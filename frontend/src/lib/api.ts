@@ -1,6 +1,7 @@
 // frontend/src/lib/api.ts
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const API_BASE_URL = typeof window !== 'undefined' && window.location.hostname !== 'localhost'
+  ? `http://${window.location.hostname}:8080`
+  : 'http://localhost:8080';
 
 // 토큰 관리
 export const TokenManager = {
@@ -52,17 +53,16 @@ interface ApiResponse<T> {
 export interface UserResponse {
   id: number;
   username: string;
-  total_games: number;
-  legacy_wins: number;
-  legacy_losses: number;
-  modern_wins: number;
-  modern_losses: number;
-  total_wins: number;
-  total_losses: number;
-  win_rate: number;
-  created_at: string;
+  totalGames: number;
+  legacyWins: number;
+  legacyLosses: number;
+  modernWins: number;
+  modernLosses: number;
+  totalWins: number;
+  totalLosses: number;
+  winRate: number;
+  createdAt: string;
 }
-
 // 인증 응답 타입
 interface AuthResponse {
   token: string;
@@ -72,15 +72,15 @@ interface AuthResponse {
 // 방 타입
 export interface RoomResponse {
   id: number;
-  room_code: string;
-  host_id: number;
-  host_name: string;
-  host_faction: string;
-  guest_id?: number;
-  guest_name?: string;
-  guest_faction?: string;
+  roomCode: string;
+  hostId: number;
+  hostName: string;
+  hostFaction: string;
+  guestId?: number;
+  guestName?: string;
+  guestFaction?: string;
   status: 'WAITING' | 'PLAYING' | 'FINISHED';
-  created_at: string;
+  createdAt: string;
 }
 
 // 게임 기록 타입
@@ -107,7 +107,7 @@ async function fetchApi<T>(
     ...options.headers,
   };
   
-  if (token) {
+  if (token && !endpoint.startsWith('/api/auth/'))  {
     (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
   }
   
@@ -194,7 +194,7 @@ export const RoomApi = {
   join: async (roomCode: string) => {
     return fetchApi<RoomResponse>('/api/rooms/join', {
       method: 'POST',
-      body: JSON.stringify({ room_code: roomCode }),
+      body: JSON.stringify({ roomCode }),  // ← 여기 수정!
     });
   },
   
@@ -222,9 +222,9 @@ export const GameApi = {
       method: 'POST',
       body: JSON.stringify({
         faction,
-        is_win: isWin,
-        is_ai_game: isAiGame,
-        game_duration_seconds: durationSeconds,
+        isWin,
+        isAiGame,
+        gameDurationSeconds: durationSeconds,
       }),
     });
   },
