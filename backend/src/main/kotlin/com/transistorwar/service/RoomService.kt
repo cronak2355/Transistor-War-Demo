@@ -22,10 +22,19 @@ class RoomService(
         val user = userRepository.findById(userId)
             .orElseThrow { IllegalArgumentException("사용자를 찾을 수 없습니다") }
 
-        // 이미 방에 있는지 확인
+    // 이미 방에 있으면 먼저 나가기
         val existingRoom = roomRepository.findByUserInRoom(userId)
         if (existingRoom.isPresent) {
-            throw IllegalStateException("이미 다른 방에 참가 중입니다")
+            val room = existingRoom.get()
+            if (room.host.id == userId) {
+                // 호스트면 방 삭제
+                roomRepository.delete(room)
+            } else {
+                // 게스트면 나가기만
+                room.guest = null
+                room.guestFaction = null
+                roomRepository.save(room)
+            }
         }
 
         // 방 코드 생성 (8자리 랜덤)
@@ -74,13 +83,13 @@ class RoomService(
             // 호스트가 나가면 방 삭제
             room.host.id == userId -> {
                 room.status = RoomStatus.FINISHED
-                roomRepository.save(room)
+                roomRepository.delete(room)
             }
             // 게스트가 나가면 게스트만 제거
             room.guest?.id == userId -> {
                 room.guest = null
                 room.guestFaction = null
-                roomRepository.save(room)
+                roomRepository.delete(room)
             }
             else -> {
                 throw IllegalStateException("이 방의 멤버가 아닙니다")

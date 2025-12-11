@@ -61,8 +61,8 @@ const UNIT_SIZE = 60; // 거리 단위 늘림
 const ATTACK_INTERVAL = 1000; // 1초마다 공격 (느리게)
 const MAX_ELECTRICITY = 500;
 const ELECTRICITY_REGEN = 10;
-const BASE_HP = 30;
-const BOSS_UNLOCK_DEATHS = 20;
+const BASE_HP = 1;
+const BOSS_UNLOCK_DEATHS = 0;
 const SUMMON_COOLDOWN = 500; // 소환 쿨타임 0.5초
 
 
@@ -1839,6 +1839,9 @@ export default function GamePage() {
                 console.error("결과 저장 실패:", response ? response.message : "No response");
               }
             })
+
+
+            
             .catch(err => {
               console.error("API 호출 오류:", err);
             });

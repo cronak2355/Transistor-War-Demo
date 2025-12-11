@@ -16,7 +16,7 @@ data class GameRoom(
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long = 0,
 
-    @Column(name = "room_code", unique = true, nullable = false, length = 8)
+    @Column(name = "roomCode", unique = true, nullable = false, length = 8)
     val roomCode: String,
 
     @ManyToOne(fetch = FetchType.LAZY)
